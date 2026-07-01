@@ -368,3 +368,236 @@ The application uses **WebSocket** to deliver notifications instantly without re
 # Conclusion
 
 The proposed REST API provides a consistent interface for managing notifications in the Campus Notification System. The design follows REST principles, uses meaningful endpoint naming, standard HTTP methods, JWT-based authentication, JSON payloads, and WebSocket-based real-time delivery. This design offers a solid foundation for future implementation in Spring Boot while providing frontend developers with a clear API contract.
+------------------------------------
+---
+
+# Stage 2
+
+## Persistent Storage Selection
+
+For the Campus Notification System, **PostgreSQL** is the recommended database.
+
+### Why PostgreSQL?
+
+PostgreSQL is a relational database that provides reliability, consistency, and excellent support for structured data.
+
+The reasons for choosing PostgreSQL are:
+
+- Supports ACID transactions to ensure data integrity.
+- Handles relationships between users and notifications efficiently.
+- Excellent indexing support for faster queries.
+- Easily integrates with Spring Boot using Spring Data JPA.
+- Suitable for handling millions of notification records.
+- Open-source and production-ready.
+
+---
+
+# Database Schema
+
+## Table: users
+
+| Column | Data Type | Constraints |
+|---------|-----------|-------------|
+| id | BIGSERIAL | Primary Key |
+| name | VARCHAR(100) | NOT NULL |
+| email | VARCHAR(150) | UNIQUE |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+---
+
+## Table: notifications
+
+| Column | Data Type | Constraints |
+|---------|-----------|-------------|
+| id | BIGSERIAL | Primary Key |
+| title | VARCHAR(255) | NOT NULL |
+| message | TEXT | NOT NULL |
+| type | VARCHAR(50) | NOT NULL |
+| priority | VARCHAR(20) | NOT NULL |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+---
+
+## Table: user_notifications
+
+This table stores notifications assigned to users.
+
+| Column | Data Type | Constraints |
+|---------|-----------|-------------|
+| id | BIGSERIAL | Primary Key |
+| user_id | BIGINT | Foreign Key |
+| notification_id | BIGINT | Foreign Key |
+| is_read | BOOLEAN | DEFAULT FALSE |
+| read_at | TIMESTAMP | NULL |
+
+---
+
+# Database Relationship
+
+```
+Users
+   |
+   | 1
+   |
+   |------< User_Notifications >------1
+                     |
+                     |
+               Notifications
+```
+
+A user can receive many notifications, and one notification can be sent to multiple users.
+
+---
+
+# Challenges as Data Volume Increases
+
+As the number of users and notifications grows, several challenges may occur.
+
+### 1. Slow Query Performance
+
+Searching through millions of notifications may become slower.
+
+### Solution
+
+Create indexes on frequently searched columns.
+
+Example:
+
+- user_id
+- notification_id
+- created_at
+- is_read
+
+---
+
+### 2. Large Database Size
+
+Old notifications continuously increase storage usage.
+
+### Solution
+
+Archive notifications older than one year into archive tables.
+
+---
+
+### 3. High Concurrent Requests
+
+Thousands of students may access notifications simultaneously.
+
+### Solution
+
+Use Redis Cache to store recently accessed notifications and reduce database load.
+
+---
+
+### 4. High Notification Traffic
+
+Sending notifications individually becomes slow.
+
+### Solution
+
+Use a message queue such as RabbitMQ or Apache Kafka to process notifications asynchronously.
+
+---
+
+### 5. Table Growth
+
+Very large tables increase query execution time.
+
+### Solution
+
+Use table partitioning based on creation date.
+
+---
+
+# SQL Queries
+
+## Create Notification
+
+```sql
+INSERT INTO notifications(title,message,type,priority)
+VALUES
+(
+'Placement Drive',
+'TCS Recruitment Drive on Friday',
+'PLACEMENT',
+'HIGH'
+);
+```
+
+---
+
+## Get All Notifications
+
+```sql
+SELECT *
+FROM notifications
+ORDER BY created_at DESC;
+```
+
+---
+
+## Get Notification By ID
+
+```sql
+SELECT *
+FROM notifications
+WHERE id = 101;
+```
+
+---
+
+## Update Notification
+
+```sql
+UPDATE notifications
+SET
+title='Updated Placement Drive',
+message='Venue changed to Seminar Hall',
+priority='HIGH'
+WHERE id=101;
+```
+
+---
+
+## Delete Notification
+
+```sql
+DELETE FROM notifications
+WHERE id=101;
+```
+
+---
+
+## Mark Notification as Read
+
+```sql
+UPDATE user_notifications
+SET
+is_read = TRUE,
+read_at = CURRENT_TIMESTAMP
+WHERE
+user_id = 1
+AND notification_id = 101;
+```
+
+---
+
+## Get Unread Notifications
+
+```sql
+SELECT n.*
+FROM notifications n
+JOIN user_notifications un
+ON n.id = un.notification_id
+WHERE
+un.user_id = 1
+AND un.is_read = FALSE
+ORDER BY n.created_at DESC;
+```
+
+---
+
+# Conclusion
+
+PostgreSQL is an ideal choice for the Campus Notification System because it provides reliability, scalability, strong transactional support, and seamless integration with Spring Boot. By implementing proper indexing, caching, database partitioning, and asynchronous processing, the system can efficiently manage large volumes of notification data while maintaining high performance.
